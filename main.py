@@ -53,6 +53,48 @@ altovale, matriz_tempo, matriz_distancia = load_database()
 tabela, caminho, entr_total, producao = st.tabs(['Tabela', 'Cidades', 'Entrega Total', 'Produção'])   
 
 with tabela:
-    st.dataframe(altovale)
-    st.dataframe(matriz_tempo)
-    st.dataframe(matriz_distancia)
+    col1, col2 = st.columns(2)
+    col2.table(altovale[['municipio', 'valor', 'demanda', 'receita']])
+    altovale["cidade_base"] = altovale["municipio"].apply(lambda x: 1 if x=='Rio do Sul' else 0)
+    cidade_base = altovale[altovale["cidade_base"]==1][["latitude","longitude"]].values[0]
+    ## Mostrar os dados com métricas
+    mapa = folium.Map(location=cidade_base, tiles="cartodbpositron", zoom_start=10)
+    cores = ["green","blue"]
+    lista_cores = sorted(list(altovale["cidade_base"].unique()))
+    altovale["cor"] = altovale["cidade_base"].apply(lambda x: cores[lista_cores.index(x)])
+    altovale.apply(
+        lambda row: folium.CircleMarker(
+            location=[
+                row["latitude"],
+                row["longitude"]
+            ],
+            popup=row["municipio"],
+            color=row["cor"],
+            fill=True,
+            radius=5
+        ).add_to(mapa),
+        axis=1
+    )
+    col1.metric('Quantidade total de demanda do produto', altovale['demanda'].sum())
+    col1.metric('Valor total da Receita', altovale['receita'].sum())
+    col1.metric('Valor médio do produto por valor', altovale['valor'].mean())
+    col1.metric('Valor médio do produto por receita', round((altovale['receita'].sum() / altovale['demanda'].sum()),2))
+    with col1:
+        folium_static(mapa)
+with caminho:
+    rota_cidades = st.multiselect('Escolha a sequência da rota de entrega', altovale['municipio'])
+    st.write(rota_cidades)
+    rotas = []
+    inicio = 0
+    primeiro = 0
+    for elemento in rota_cidades:
+        if primeiro == 0:
+            inicio = elemento
+            primeiro = 1
+            cidade_inicio = elemento
+        else:
+            rotas.insert(len(rotas), [inicio, elemento])
+            inicio = elemento
+    rotas.insert(len(rotas), [rota_cidades[-1], cidade_inicio])
+    st.write(rotas)
+
